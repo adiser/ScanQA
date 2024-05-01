@@ -47,7 +47,7 @@ CONF.SCANNETV2_TEST = os.path.join(CONF.PATH.SCANNET_META, "scannetv2_test.txt")
 CONF.SCANNETV2_LIST = os.path.join(CONF.PATH.SCANNET_META, "scannetv2.txt")
 
 # output
-CONF.PATH.OUTPUT = os.path.join(CONF.PATH.BASE, "outputs")
+CONF.PATH.OUTPUT = os.path.join(CONF.PATH.BASE, "outputs", 'full_mixture')
 
 # train
 CONF.TRAIN = EasyDict()

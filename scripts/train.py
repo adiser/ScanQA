@@ -18,7 +18,7 @@ from lib.config import CONF
 from models.qa_module import ScanQA
 
 project_name = "ScanQA_v1.0"
-SCANQA_TRAIN = json.load(open(os.path.join(CONF.PATH.SCANQA, project_name + "_train.json"))) 
+SCANQA_TRAIN = json.load(open(os.path.join(CONF.PATH.SCANQA, project_name + "_train.json")))
 SCANQA_VAL = json.load(open(os.path.join(CONF.PATH.SCANQA, project_name + "_val.json")))
 
 # constants
@@ -26,12 +26,13 @@ DC = ScannetQADatasetConfig()
 
 def parse_option():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mixed_proba', type=float, default=1.)
     parser.add_argument("--debug", action="store_true", help="debugging mode")
     parser.add_argument("--tag", type=str, help="tag for the training, e.g. XYZ_COLOR", default="")
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
     # Training
     parser.add_argument("--cur_criterion", type=str, default="answer_acc_at1", help="data augmentation type")
-    parser.add_argument("--batch_size", type=int, help="batch size", default=16)
+    parser.add_argument("--batch_size", type=int, help="batch size", default=6)
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=1000) # 5000
@@ -133,8 +134,9 @@ def get_dataloader(args, scanqa, all_scene_list, split, config, augment):
     else:
         tokenizer = None
 
+    is_train = split == 'train'
     dataset = ScannetQADataset(
-        scanqa=scanqa[split], 
+        scanqa=scanqa[split],
         scanqa_all_scene=all_scene_list, 
         answer_cands=answer_cands,
         answer_counter=answer_counter,
@@ -148,6 +150,7 @@ def get_dataloader(args, scanqa, all_scene_list, split, config, augment):
         tokenizer=tokenizer,
         augment=augment,
         debug=args.debug,
+        mixed_proba=args.mixed_proba if is_train else 0
     )
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
     return dataset, dataloader
@@ -224,7 +227,7 @@ def get_num_params(model):
 
 def get_solver(args, dataloader):
     model = get_model(args, DC)
-    #wandb.watch(model, log_freq=100)
+    # wandb.watch(model, log_freq=100)
 
     if args.optim_name == 'adam':
         model_params = [{"params": model.parameters()}]
@@ -367,12 +370,33 @@ def get_scanqa(scanqa_train, scanqa_val, train_num_scenes, val_num_scenes):
 
 
 def train(args):
-    # WandB init    
-    wandb.init(project=project_name, config=args)
-
+    # WandB init
+    wandb.init(project='l3d_bhai',
+               config=args,
+               notes="Full Mixture, 100 samples in the datasets.")
     # init training dataset
     print("preparing data...")
-    scanqa_train, scanqa_val, all_scene_list = get_scanqa(SCANQA_TRAIN, SCANQA_VAL, args.train_num_scenes, args.val_num_scenes)
+    SCANQA_TRAIN_filtered, SCANQA_VAL_filtered = [], []
+    for data in SCANQA_TRAIN:
+        scene_id = data['scene_id']
+        scene_num = scene_id.split("_")[0].replace("scene0", "")
+        if int(scene_num) > 100:
+            pass
+        else:
+            SCANQA_TRAIN_filtered.append(data)
+        # print(scene_num)
+
+    for data in SCANQA_VAL:
+        scene_id = data['scene_id']
+        scene_num = scene_id.split("_")[0].replace("scene0", "")
+        if int(scene_num) > 100:
+            pass
+        else:
+            SCANQA_VAL_filtered.append(data)
+        # print(scene_num)
+    #
+    scanqa_train, scanqa_val, all_scene_list = get_scanqa(SCANQA_TRAIN_filtered, SCANQA_VAL_filtered, args.train_num_scenes, args.val_num_scenes)
+    # scanqa_train, scanqa_val, all_scene_list = get_scanqa(SCANQA_TRAIN, SCANQA_VAL, args.train_num_scenes, args.val_num_scenes)
     scanqa = {
         "train": scanqa_train,
         "val": scanqa_val
